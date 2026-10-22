@@ -10,6 +10,7 @@ COLORS = {
     "Active New Buyers": "#1E88E5",
     "At Risk / Hibernating": "#E53935",
 }
+
 ACTIONS = {
     "Champion / VIP": "Beri program loyalty & akses eksklusif; jaga retensi, jangan over-diskon.",
     "Active New Buyers": "Dorong repeat order: voucher pembelian kedua, rekomendasi produk, email onboarding.",
@@ -36,7 +37,6 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-
 # ---------- DATA ----------
 @st.cache_data
 def load_data():
@@ -44,7 +44,6 @@ def load_data():
     if "order_purchase_timestamp" in df.columns:
         df["order_purchase_timestamp"] = pd.to_datetime(df["order_purchase_timestamp"])
     return df
-
 
 df = load_data()
 
@@ -61,7 +60,6 @@ mon_range = st.sidebar.slider(
     "Monetary (R$)", 0.0, round(mon_cap, 0), (0.0, round(mon_cap, 0)),
     help="Dibatasi sampai persentil 99 supaya outlier tidak merusak slider.",
 )
-st.sidebar.caption("Monetary di atas batas slider otomatis ikut terfilter.")
 
 df_f = df[
     df["customer_segment"].isin(segment_choice)
@@ -110,7 +108,7 @@ with tab1:
         )
         fig.update_traces(textinfo="percent+label")
         fig.update_layout(showlegend=False)
-        st.plotly_chart(fig, width="stretch")
+        st.plotly_chart(fig, use_container_width=True)
     with b:
         fig = px.bar(
             seg_rev, x="customer_segment", y="monetary", text_auto=".3s",
@@ -119,51 +117,30 @@ with tab1:
             labels={"customer_segment": "Segmen", "monetary": "Revenue"},
         )
         fig.update_layout(showlegend=False)
-        st.plotly_chart(fig, width="stretch")
+        st.plotly_chart(fig, use_container_width=True)
 
-    if "order_purchase_timestamp" in df_f.columns:
-        trend = (
-            df_f.set_index("order_purchase_timestamp")
-            .groupby("customer_segment")
-            .resample("MS")
-            .size()
-            .reset_index(name="jumlah")
-        )
-        fig = px.area(
-            trend, x="order_purchase_timestamp", y="jumlah", color="customer_segment",
-            color_discrete_map=COLORS, title="Tren Pembelian Terakhir Customer per Bulan",
-            labels={"order_purchase_timestamp": "Bulan", "jumlah": "Jumlah Customer"},
-        )
-        st.plotly_chart(fig, width="stretch")
+    # Boxplot dipindah ke Tab 1 menggantikan Area Chart
+    metric = st.selectbox("Pilih Distribusi Metrik untuk Dianalisis", ["recency", "monetary", "frequency"])
+    fig = px.box(
+        df_f, x="customer_segment", y=metric, color="customer_segment",
+        color_discrete_map=COLORS, log_y=(metric == "monetary"),
+        title=f"Distribusi {metric.title()} per Segmen",
+    )
+    fig.update_layout(showlegend=False)
+    st.plotly_chart(fig, use_container_width=True)
 
 with tab2:
     sample = df_f.sample(min(len(df_f), 5000), random_state=42)
-    st.caption(f"Scatter plot memakai sampel {len(sample):,} customer supaya tetap ringan.")
-    a, b = st.columns(2)
-    with a:
-        fig = px.scatter(
-            sample, x="recency", y="monetary", color="customer_segment",
-            color_discrete_map=COLORS, opacity=0.6, log_y=True,
-            title="Recency vs Monetary (skala log)",
-            hover_data=["frequency"],
-        )
-        st.plotly_chart(fig, width="stretch")
-    with b:
-        metric = st.selectbox("Distribusi metrik", ["recency", "monetary", "frequency"])
-        fig = px.box(
-            df_f, x="customer_segment", y=metric, color="customer_segment",
-            color_discrete_map=COLORS, log_y=(metric == "monetary"),
-            title=f"Distribusi {metric.title()} per Segmen",
-        )
-        fig.update_layout(showlegend=False)
-        st.plotly_chart(fig, width="stretch")
-
-    fig = px.scatter_3d(
-        sample, x="recency", y="frequency", z="monetary", color="customer_segment",
-        color_discrete_map=COLORS, opacity=0.6, title="Visualisasi 3D Cluster RFM",
+    st.caption(f"Scatter plot memakai sampel {len(sample):,} customer supaya tampilan tetap cepat dan ringan.")
+    
+    # Fokus ke Scatter Plot 2D Utama
+    fig = px.scatter(
+        sample, x="recency", y="monetary", color="customer_segment",
+        color_discrete_map=COLORS, opacity=0.6, log_y=True,
+        title="Peta Sebaran Customer: Recency vs Monetary (skala log)",
+        hover_data=["frequency"],
     )
-    fig.update_layout(height=560)
-    st.plotly_chart(fig, width="stretch")
+    st.plotly_chart(fig, use_container_width=True)
 
 with tab3:
     profile = (
@@ -184,7 +161,7 @@ with tab3:
             "avg_recency": "Avg Recency (hari)", "avg_frequency": "Avg Frequency",
             "avg_monetary": "Avg Monetary (R$)", "total_revenue": "Total Revenue (R$)",
         }),
-        width="stretch", hide_index=True,
+        use_container_width=True, hide_index=True,
     )
 
     st.subheader("💡 Rekomendasi Strategi Marketing")
@@ -198,10 +175,10 @@ with tab3:
 with tab4:
     q = st.text_input("🔍 Cari customer_id")
     show = df_f[df_f["customer_id"].str.contains(q, case=False, na=False)] if q else df_f
-    st.caption(f"{len(show):,} baris")
-    st.dataframe(show, width="stretch", hide_index=True, height=420)
+    st.caption(f"{len(show):,} baris data ditemukan")
+    st.dataframe(show, use_container_width=True, hide_index=True, height=420)
     st.download_button(
-        "⬇️ Download data terfilter (CSV)",
+        "⬇️ Download Data Terfilter (CSV)",
         show.to_csv(index=False).encode("utf-8"),
         "olist_rfm_filtered.csv", "text/csv",
     )
